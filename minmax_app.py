@@ -2,88 +2,117 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Functie om werkelijke werkdagen (excl. weekend) te berekenen
+# Werkdagen
+
 def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
+def bereken_trendfactor(df):
+    m1 = df["Verkoop1M"]
+    m2 = df["Verkoop2M"] - df["Verkoop1M"]
+    m3t6 = (df["Verkoop6M"] - df["Verkoop2M"]) / 4
+    recent = (m1 + m2) / 2
+    historisch = m3t6.replace(0, 0.01)
+    trendfactor = (recent / historisch).clip(lower=0.8, upper=1.2)
+    return trendfactor
+
 def bereken_dagverkoop(df):
-    return df["Verkoop2M"] / 42  # 2 maanden ≈ 42 werkdagen
+    return df["Verkoop2M"] / 42
 
-def bereken_optimale_bestelgrootte(df):
-    bestelkosten = 1  # euro per orderregel
-    voorraadkosten_p_jaar = 0.12  # 1% per maand = 12% per jaar
-
+def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["Jaarverbruik"] = df["Dagverkoop"] * 261
     df["EOQ"] = np.sqrt((2 * df["Jaarverbruik"] * bestelkosten) / (voorraadkosten_p_jaar * df["Kostprijs"]))
     df["OptimaleBestelgrootte"] = (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"]
-
     return df
 
-def get_z_value(service_level):
-    z_table = {
-        90: 1.28,
-        95: 1.65,
-        98: 2.05,
-        99: 2.33,
-        99.9: 3.08
+def get_z_value_from_abc(abc):
+    servicegraad_dict = {
+        "A": 99.5, "B": 99.0, "C": 98.5, "D": 98.0,
+        "E": 97.0, "F": 97.0, "G": 97.0
     }
-    return z_table.get(service_level, 2.33)  # default is 99%
+    z_dict = {
+        97.0: 1.88, 98.0: 2.05, 98.5: 2.17,
+        99.0: 2.33, 99.5: 2.58
+    }
+    service = servicegraad_dict.get(str(abc).upper(), 98.0)
+    z = z_dict.get(service, 2.05)
+    return service, z
 
-def bereken_min_max(df, service_level):
+def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
     df["Dagverkoop"] = bereken_dagverkoop(df)
-    df = bereken_optimale_bestelgrootte(df)
+    df["Trendfactor"] = bereken_trendfactor(df)
+    df["DagverkoopTrend"] = df["Dagverkoop"] * df["Trendfactor"]
 
-    z = get_z_value(service_level)
+    df = bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar)
+
+    servicegraden, z_waardes = [], []
+    for abc in df["ABC"]:
+        service, z = get_z_value_from_abc(abc)
+        servicegraden.append(service)
+        z_waardes.append(z)
+    df["Servicegraad"] = servicegraden
+    df["Z"] = z_waardes
+
     df["Dekperiode"] = df["LevertijdWD"] + df["Cyclus"] * 5
-    df["Veiligheidsvoorraad"] = z * df["Dagverkoop"] * np.sqrt(df["Dekperiode"])
-    df["Min"] = df["Dekperiode"] * df["Dagverkoop"] + df["Veiligheidsvoorraad"]
+    df["Veiligheidsvoorraad"] = df["Z"] * df["DagverkoopTrend"] * np.sqrt(df["Dekperiode"])
+    df["Min"] = df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]
     df["Max"] = df["Min"] + df["OptimaleBestelgrootte"]
 
-    df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2 * df["Kostprijs"]
-    df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2 * df["Kostprijs"]
-    df["VerschilVoorraadWaarde"] = df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]
+    df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2
+    df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2
+    df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["Kostprijs"] * (voorraadkosten_p_jaar / 12)
+    df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["Kostprijs"] * (voorraadkosten_p_jaar / 12)
+    df["VerschilVoorraadWaarde"] = (df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]) * df["Kostprijs"]
 
     return df
 
 def genereer_excel(df):
     output = BytesIO()
+    df_export = df.copy()
+    decimal_minmax = ((df["MinHuidig"] % 1 != 0) | (df["MaxHuidig"] % 1 != 0))
+    for col in df_export.columns:
+        if col in ["Min", "Max"]:
+            df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
+        elif col in df.columns[:14]:
+            continue
+        else:
+            df_export[col] = df_export[col].round(2)
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
+        df_export.to_excel(writer, index=False)
     output.seek(0)
     return output
 
-def plot_verschil(df):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    df_sorted = df.sort_values("VerschilVoorraadWaarde", ascending=False).head(20)
-    ax.bar(df_sorted["Artikelnummer"], df_sorted["VerschilVoorraadWaarde"])
-    ax.set_ylabel("Verschil voorraadwaarde (€)")
-    ax.set_title("Top 20 artikelen met grootste voorraadverschil")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    return fig
+st.title("Min/Max + EOQ met trend en ABC-servicegraad")
 
-st.title("Min/Max + EOQ Berekening met instelbare Servicegraad")
+bestelkosten = 0.5
+voorraadkosten_p_jaar = 0.12
+abc_levels = {"A": 99.5, "B": 99.0, "C": 98.5, "D": 98.0, "E": 97.0, "F": 97.0, "G": 97.0}
+
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown("**Uitlevergraad per ABC**")
+    for k, v in abc_levels.items():
+        st.markdown(f"{k}: {v}%")
+with col2:
+    st.markdown("**Parameters**")
+    st.markdown(f"Voorraadkosten: **1% p/mnd** ({voorraadkosten_p_jaar * 100:.1f}% p/j)")
+    st.markdown(f"Bestelkosten: **€{bestelkosten:.2f}** per orderregel")
 
 uploaded_file = st.file_uploader("Upload Excel-bestand met artikeldata", type=["xlsx"])
-
-service_level = st.selectbox("Kies gewenste uitlevergraad (%)", options=[90, 95, 98, 99, 99.9], index=3)
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
         st.write("Voorbeeld van ingelezen data:", df.head())
 
-        verplichte_kolommen = {"Verkoop2M", "LevertijdWD", "Cyclus", "Kostprijs", "Bestelgroote", "Artikelnummer", "MinHuidig", "MaxHuidig"}
+        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
+                               "LevertijdWD", "Cyclus", "Kostprijs", "Bestelgroote", "Artikelnummer",
+                               "MinHuidig", "MaxHuidig", "ABC"}
         if verplichte_kolommen.issubset(df.columns):
-            resultaat_df = bereken_min_max(df, service_level)
-            st.write(f"Resultaat met {service_level}% servicegraad:", resultaat_df)
-
+            resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
             totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
-            st.metric("Verschil in gemiddelde voorraadwaarde (€)", f"{totaal_verschil:,.2f}")
-
-            st.pyplot(plot_verschil(resultaat_df))
+            st.metric("Totaal verschil voorraadwaarde (€)", f"{totaal_verschil:,.2f}")
 
             excel_bestand = genereer_excel(resultaat_df)
             st.download_button("Download resultaat als Excel", excel_bestand, file_name="minmax_resultaat.xlsx")
