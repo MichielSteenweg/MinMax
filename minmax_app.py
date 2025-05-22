@@ -20,7 +20,9 @@ def bereken_dagverkoop(df):
 def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["Jaarverbruik"] = df["Dagverkoop"] * 261
     df["EOQ"] = np.sqrt((2 * df["Jaarverbruik"] * bestelkosten) / (voorraadkosten_p_jaar * df["KostprijsPerStuk"]))
-    df["OptimaleBestelgrootte"] = (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"]
+    df["EOQ_KleinerDanBestelgroote"] = df["EOQ"] < df["Bestelgroote"]
+    df["OptimaleBestelgrootte"] = np.where(df["EOQ_KleinerDanBestelgroote"], df["Bestelgroote"],
+                                            (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"])
     return df
 
 def get_z_value_from_abc(abc):
@@ -78,6 +80,17 @@ def genereer_excel(df):
             df_export[col] = df_export[col].round(2)
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False)
+        workbook = writer.book
+        worksheet = writer.sheets["Sheet1"]
+        red_fill = workbook.create_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
+        eoql_col = df_export.columns.get_loc("EOQ") + 1
+        flag_col = df_export.columns.get_loc("EOQ_KleinerDanBestelgroote") + 1
+        for row in range(2, len(df_export) + 2):
+            worksheet.conditional_format(f"{chr(64+eoql_col)}{row}", {
+                "type": "formula",
+                "criteria": f"=${chr(64+flag_col)}{row}=TRUE",
+                "format": red_fill
+            })
     output.seek(0)
     return output
 
