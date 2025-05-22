@@ -3,8 +3,6 @@ import pandas as pd
 from io import BytesIO
 import numpy as np
 
-# Werkdagen
-
 def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
@@ -12,10 +10,7 @@ def bereken_trendfactor(df):
     maandelijks_6m = df["Verkoop6M"] / 6
     maandelijks_12m = df["Verkoop12M"] / 12
     maandelijks_24m = df["Verkoop24M"] / 24
-
-    # Gemiddelde van 6M en 12M
-    gemiddeld_kort = (maandelijks_6m + maandelijks_12m) / 2
-
+    gemiddeld_kort = (maandelijks_6m + maandellijks_12m) / 2
     trendfactor = (gemiddeld_kort / maandelijks_24m.replace(0, 0.01)).clip(lower=0.8, upper=1.2)
     return trendfactor
 
@@ -27,7 +22,7 @@ def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["EOQ"] = np.sqrt((2 * df["Jaarverbruik"] * bestelkosten) / (voorraadkosten_p_jaar * df["KostprijsPerStuk"]))
     df["EOQ_KleinerDanBestelgroote"] = df["EOQ"] < df["Bestelgroote"]
     df["OptimaleBestelgrootte"] = np.where(df["EOQ_KleinerDanBestelgroote"], df["Bestelgroote"],
-                                            (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"])
+                                           (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"])
     return df
 
 def get_z_value_from_abc(abc):
@@ -62,22 +57,18 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
     df["Dekperiode"] = df["LevertijdWD"] + df["Cyclus"] * 5
     df["Veiligheidsvoorraad"] = df["Z"] * df["DagverkoopTrend"] * np.sqrt(df["Dekperiode"])
     df["Min"] = (df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]).clip(lower=1)
-    df["Max"] = np.where(
-    df["EOQ_KleinerDanBestelgroote"],
-    df["Min"],
-    df["Min"] + df["OptimaleBestelgrootte"]
-)
+    df["Max"] = np.where(df["EOQ_KleinerDanBestelgroote"], df["Min"], df["Min"] + df["OptimaleBestelgrootte"])
 
     df["GemiddeldeVoorraadNieuw"] = np.where(
-    df["EOQ_KleinerDanBestelgroote"],
-    (df["Min"] + df["Min"] + df["OptimaleBestelgrootte"]) / 2,
-    (df["Min"] + df["Max"]) / 2
-)
+        df["EOQ_KleinerDanBestelgroote"],
+        (df["Min"] + df["Min"] + df["OptimaleBestelgrootte"]) / 2,
+        (df["Min"] + df["Max"]) / 2
+    )
+
     df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2
     df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
     df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
     df["VerschilVoorraadWaarde"] = (df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]) * df["KostprijsPerStuk"]
-
     return df
 
 def genereer_excel(df):
@@ -117,13 +108,40 @@ def genereer_excel(df):
                 "format": red_fill
             })
 
-        # Verberg de vlagkolom
-        flag_col_idx = df_export.columns.get_loc("EOQ_KleinerDanBestelgroote")
-        worksheet.set_column(flag_col_idx, flag_col_idx, None, None, {"hidden": True})
+        worksheet.set_column(flag_col_letter + ':' + flag_col_letter, None, None, {'hidden': True})
+
+        overzicht_kolommen = {
+            "Artikelnummer": "Art.",
+            "Omschrijving": "Omschr.",
+            "KostprijsPerStuk": "Kostprijs",
+            "ABC": "ABC",
+            "Courantie": "Cour.",
+            "Verkoop6M": "6mnd",
+            "Verkoop12M": "12mnd",
+            "Verkoop24M": "24mnd",
+            "Bestelgroote": "Besteleenh.",
+            "LevertijdWD": "Levertijd",
+            "Cyclus": "Cyclus",
+            "Dekperiode": "Levert.tot.",
+            "Trendfactor": "Trendf.",
+            "MinHuidig": "Min",
+            "MaxHuidig": "Max",
+            "EOQ": "EOQ",
+            "OptimaleBestelgrootte": "OBG",
+            "Min": "MinN",
+            "Max": "MaxN",
+            "VerschilVoorraadWaarde": "Delta"
+        }
+
+        kolom_volgorde = list(overzicht_kolommen.keys())
+        samenvatting_df = df_export[kolom_volgorde].copy()
+        samenvatting_df.rename(columns=overzicht_kolommen, inplace=True)
+        samenvatting_df.to_excel(writer, sheet_name="Overzicht", index=False)
 
     output.seek(0)
     return output
 
+# Streamlit interface
 st.title("Min/Max + EOQ met trend en ABC-servicegraad")
 
 bestelkosten = 0.5
@@ -147,9 +165,12 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         st.write("Voorbeeld van ingelezen data:", df.head())
 
-        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
-                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
-                               "MinHuidig", "MaxHuidig", "ABC"}
+        verplichte_kolommen = {
+            "Artikelnummer", "Omschrijving", "Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
+            "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
+            "MinHuidig", "MaxHuidig", "ABC", "Courantie"
+        }
+
         if verplichte_kolommen.issubset(df.columns):
             resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
             totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
