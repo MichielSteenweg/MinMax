@@ -82,36 +82,8 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 
 def genereer_excel(df):
     output = BytesIO()
-    df_export_conditional = df.copy()
-    decimal_minmax = ((df_export_conditional["MinHuidig"] % 1 != 0) | (df_export_conditional["MaxHuidig"] % 1 != 0))
-
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_export_conditional.to_excel(writer, index=False, sheet_name="Sheet1")
-        workbook = writer.book
-        worksheet = writer.sheets["Sheet1"]
-
-        # Verberg de vlagkolom EOQ_KleinerDanBestelgroote
-        try:
-            flag_col_idx = df_export_conditional.columns.get_loc("EOQ_KleinerDanBestelgroote")
-            worksheet.set_column(flag_col_idx, flag_col_idx, None, None, {"hidden": True})
-        except:
-            pass
-
-        red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
-
-        eoql_col_letter = chr(65 + df_export_conditional.columns.get_loc("EOQ"))
-        flag_col_letter = chr(65 + df_export_conditional.columns.get_loc("EOQ_KleinerDanBestelgroote"))
-        aantal_rijen = len(df_export_conditional)
-
-        for row in range(2, aantal_rijen + 2):
-            worksheet.conditional_format(f"{eoql_col_letter}{row}", {
-                "type": "formula",
-                "criteria": f"=${flag_col_letter}{row}=TRUE",
-                "format": red_fill
-            })
-
-    # Nieuwe export zonder de kolom
-    df_export = df_export_conditional.drop(columns=["EOQ_KleinerDanBestelgroote"]).copy()
+    df_export = df.copy()
+    decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
 
     for col in df_export.columns:
         if col in ["Min", "Max"]:
@@ -121,9 +93,33 @@ def genereer_excel(df):
         else:
             df_export[col] = df_export[col].round(2)
 
-    output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Sheet1")
+        workbook = writer.book
+        worksheet = writer.sheets["Sheet1"]
+
+        red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
+
+        eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
+        flag_col_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
+        max_col_letter = chr(65 + df_export.columns.get_loc("Max"))
+        aantal_rijen = len(df_export)
+
+        for row in range(2, aantal_rijen + 2):
+            worksheet.conditional_format(f"{eoql_col_letter}{row}", {
+                "type": "formula",
+                "criteria": f"=${flag_col_letter}{row}=TRUE",
+                "format": red_fill
+            })
+            worksheet.conditional_format(f"{max_col_letter}{row}", {
+                "type": "formula",
+                "criteria": f"=${flag_col_letter}{row}=TRUE",
+                "format": red_fill
+            })
+
+        # Verberg de vlagkolom
+        flag_col_idx = df_export.columns.get_loc("EOQ_KleinerDanBestelgroote")
+        worksheet.set_column(flag_col_idx, flag_col_idx, None, None, {"hidden": True})
 
     output.seek(0)
     return output
