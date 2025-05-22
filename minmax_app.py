@@ -4,7 +4,6 @@ from io import BytesIO
 import numpy as np
 
 # Werkdagen
-
 def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
@@ -69,8 +68,29 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 
 def genereer_excel(df):
     output = BytesIO()
-    df_export = df.copy()
-    decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
+    df_export_conditional = df.copy()
+    decimal_minmax = ((df_export_conditional["MinHuidig"] % 1 != 0) | (df_export_conditional["MaxHuidig"] % 1 != 0))
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_export_conditional.to_excel(writer, index=False, sheet_name="Sheet1")
+        workbook = writer.book
+        worksheet = writer.sheets["Sheet1"]
+
+        red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
+
+        eoql_col_letter = chr(65 + df_export_conditional.columns.get_loc("EOQ"))
+        flag_col_letter = chr(65 + df_export_conditional.columns.get_loc("EOQ_KleinerDanBestelgroote"))
+        aantal_rijen = len(df_export_conditional)
+
+        for row in range(2, aantal_rijen + 2):
+            worksheet.conditional_format(f"{eoql_col_letter}{row}", {
+                "type": "formula",
+                "criteria": f"=${flag_col_letter}{row}=TRUE",
+                "format": red_fill
+            })
+
+    df_export = df_export_conditional.drop(columns=["EOQ_KleinerDanBestelgroote"]).copy()
+
     for col in df_export.columns:
         if col in ["Min", "Max"]:
             df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
@@ -79,27 +99,14 @@ def genereer_excel(df):
         else:
             df_export[col] = df_export[col].round(2)
 
+    output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Sheet1")
-        workbook = writer.book
-        worksheet = writer.sheets["Sheet1"]
 
-        red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
-
-        eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
-        flag_col_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
-        aantal_rijen = len(df_export)
-
-        for row in range(2, aantal_rijen + 2):
-            worksheet.conditional_format(f"{eoql_col_letter}{row}", {
-                "type": "formula",
-                "criteria": f"=${flag_col_letter}{row}=TRUE",
-                "format": red_fill
-            })
-    
     output.seek(0)
     return output
 
+# Streamlit UI
 st.title("Min/Max + EOQ met trend en ABC-servicegraad")
 
 bestelkosten = 0.5
@@ -123,9 +130,11 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         st.write("Voorbeeld van ingelezen data:", df.head())
 
-        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
-                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
-                               "MinHuidig", "MaxHuidig", "ABC"}
+        verplichte_kolommen = {
+            "Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
+            "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
+            "MinHuidig", "MaxHuidig", "ABC"
+        }
         if verplichte_kolommen.issubset(df.columns):
             resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
             totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
