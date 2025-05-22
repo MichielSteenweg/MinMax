@@ -70,6 +70,9 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 def genereer_excel(df):
     output = BytesIO()
     df_export = df.copy()
+    if "EOQ_KleinerDanBestelgroote" in df_export.columns:
+        df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
+
     decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
     for col in df_export.columns:
         if col in ["Min", "Max"]:
@@ -86,8 +89,8 @@ def genereer_excel(df):
 
         red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
 
-        eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
-        flag_col_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
+        eoql_col_letter = chr(65 + df.columns.get_loc("EOQ"))
+        flag_col_letter = chr(65 + df.columns.get_loc("EOQ_KleinerDanBestelgroote"))
         aantal_rijen = len(df_export)
 
         for row in range(2, aantal_rijen + 2):
