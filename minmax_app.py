@@ -57,8 +57,6 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
     df["Dekperiode"] = df["LevertijdWD"] + df["Cyclus"] * 5
     df["Veiligheidsvoorraad"] = df["Z"] * df["DagverkoopTrend"] * np.sqrt(df["Dekperiode"])
     df["Min"] = df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]
-    df["Min"] = df["Min"].clip(lower=1)
-    df["MinClip"] = df["Min"] == 1  # voor opmaak achteraf
     df["Max"] = df["Min"] + df["OptimaleBestelgrootte"]
 
     df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2
@@ -88,7 +86,6 @@ def genereer_excel(df):
 
         red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
 
-        # EOQ markering
         eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
         eoql_flag_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
         aantal_rijen = len(df_export)
@@ -99,17 +96,7 @@ def genereer_excel(df):
                 "format": red_fill
             })
 
-        # Min = 1 markering
-        min_col_letter = chr(65 + df_export.columns.get_loc("Min"))
-        min_flag_letter = chr(65 + df_export.columns.get_loc("MinClip"))
-        for row in range(2, aantal_rijen + 2):
-            worksheet.conditional_format(f"{min_col_letter}{row}", {
-                "type": "formula",
-                "criteria": f"=${min_flag_letter}{row}=TRUE",
-                "format": red_fill
-            })
-
-        df_export.drop(columns=["EOQ_KleinerDanBestelgroote", "MinClip"], inplace=True)
+        df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
 
     output.seek(0)
     return output
