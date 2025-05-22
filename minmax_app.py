@@ -87,16 +87,53 @@ def genereer_excel(df):
         red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
 
         eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
-        eoql_flag_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
+        flag_col_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
         aantal_rijen = len(df_export)
+
         for row in range(2, aantal_rijen + 2):
             worksheet.conditional_format(f"{eoql_col_letter}{row}", {
                 "type": "formula",
-                "criteria": f"=${eoql_flag_letter}{row}=TRUE",
+                "criteria": f"=${flag_col_letter}{row}=TRUE",
                 "format": red_fill
             })
 
-        df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
-
     output.seek(0)
     return output
+
+st.title("Min/Max + EOQ met trend en ABC-servicegraad")
+
+bestelkosten = 0.5
+voorraadkosten_p_jaar = 0.12
+abc_levels = {"A": 99.5, "B": 99.0, "C": 98.5, "D": 98.0, "E": 97.0, "F": 97.0, "G": 97.0}
+
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown("**Uitlevergraad per ABC**")
+    for k, v in abc_levels.items():
+        st.markdown(f"{k}: {v}%")
+with col2:
+    st.markdown("**Parameters**")
+    st.markdown(f"Voorraadkosten: **1% p/mnd** ({voorraadkosten_p_jaar * 100:.1f}% p/j)")
+    st.markdown(f"Bestelkosten: **€{bestelkosten:.2f}** per orderregel")
+
+uploaded_file = st.file_uploader("Upload Excel-bestand met artikeldata", type=["xlsx"])
+
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file)
+        st.write("Voorbeeld van ingelezen data:", df.head())
+
+        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
+                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
+                               "MinHuidig", "MaxHuidig", "ABC"}
+        if verplichte_kolommen.issubset(df.columns):
+            resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
+            totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
+            st.metric("Totaal verschil voorraadwaarde (€)", f"{totaal_verschil:,.2f}")
+
+            excel_bestand = genereer_excel(resultaat_df)
+            st.download_button("Download resultaat als Excel", excel_bestand, file_name="minmax_resultaat.xlsx")
+        else:
+            st.error(f"Het bestand mist één of meer verplichte kolommen: {verplichte_kolommen}")
+    except Exception as e:
+        st.error(f"Fout bij verwerken van bestand: {e}")
