@@ -9,16 +9,13 @@ def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
 def bereken_trendfactor(df):
-    m1 = df["Verkoop1M"]
-    m2 = df["Verkoop2M"] - df["Verkoop1M"]
-    m3t6 = (df["Verkoop6M"] - df["Verkoop2M"]) / 4
-    recent = (m1 + m2) / 2
-    historisch = m3t6.replace(0, 0.01)
-    trendfactor = (recent / historisch).clip(lower=0.8, upper=1.2)
+    maandelijks_6m = df["Verkoop6M"] / 6
+    maandelijks_24m = df["Verkoop24M"] / 24
+    trendfactor = (maandelijks_6m / maandelijks_24m.replace(0, 0.01)).clip(lower=0.8, upper=1.2)
     return trendfactor
 
 def bereken_dagverkoop(df):
-    return df["Verkoop2M"] / 42
+    return df["Verkoop6M"] / 126  # 6 maanden ≈ 126 werkdagen
 
 def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["Jaarverbruik"] = df["Dagverkoop"] * 261
