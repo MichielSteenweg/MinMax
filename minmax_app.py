@@ -61,7 +61,7 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 
     df["Dekperiode"] = df["LevertijdWD"] + df["Cyclus"] * 5
     df["Veiligheidsvoorraad"] = df["Z"] * df["DagverkoopTrend"] * np.sqrt(df["Dekperiode"])
-    df["Min"] = df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]
+    df["Min"] = (df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]).clip(lower=1)
     df["Max"] = df["Min"] + df["OptimaleBestelgrootte"]
 
     df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2
