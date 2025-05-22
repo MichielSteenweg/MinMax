@@ -9,9 +9,9 @@ def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
 def bereken_trendfactor(df):
-    maandelijks_6m = df["Verkoop6M"] / 6
-    maandelijks_12m = df["Verkoop12M"] / 12
-    maandelijks_24m = df["Verkoop24M"] / 24
+    maandelijks_6m = df["#6mnd"] / 6
+    maandelijks_12m = df["#12mnd"] / 12
+    maandelijks_24m = df["#24mnd"] / 24
 
     # Gemiddelde van 6M en 12M
     gemiddeld_kort = (maandelijks_6m + maandelijks_12m) / 2
@@ -20,7 +20,7 @@ def bereken_trendfactor(df):
     return trendfactor
 
 def bereken_dagverkoop(df):
-    return df["Verkoop6M"] / 126  # 6 maanden ≈ 126 werkdagen
+    return df["#6mnd"] / 126  # 6 maanden ≈ 126 werkdagen
 
 def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["Jaarverbruik"] = df["Dagverkoop"] * 261
@@ -73,7 +73,7 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
     (df["Min"] + df["Min"] + df["OptimaleBestelgrootte"]) / 2,
     (df["Min"] + df["Max"]) / 2
 )
-    df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2
+    df["GemiddeldeVoorraadHuidig"] = (df["Min"] + df["Max"]) / 2
     df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
     df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
     df["VerschilVoorraadWaarde"] = (df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]) * df["KostprijsPerStuk"]
@@ -83,7 +83,7 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 def genereer_excel(df):
     output = BytesIO()
     df_export = df.copy()
-    decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
+    decimal_minmax = ((df_export["Min"] % 1 != 0) | (df_export["Max"] % 1 != 0))
 
     for col in df_export.columns:
         if col in ["Min", "Max"]:
@@ -147,9 +147,9 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         st.write("Voorbeeld van ingelezen data:", df.head())
 
-        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
-                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
-                               "MinHuidig", "MaxHuidig", "ABC"}
+        verplichte_kolommen = {"#1mnd", "#2mnd", "#6mnd", "#12mnd", "#24mnd",
+                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Art.nr.",
+                               "Min", "Max", "ABC"}
         if verplichte_kolommen.issubset(df.columns):
             resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
             totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
