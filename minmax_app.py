@@ -62,9 +62,17 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
     df["Dekperiode"] = df["LevertijdWD"] + df["Cyclus"] * 5
     df["Veiligheidsvoorraad"] = df["Z"] * df["DagverkoopTrend"] * np.sqrt(df["Dekperiode"])
     df["Min"] = (df["DagverkoopTrend"] * df["Dekperiode"] + df["Veiligheidsvoorraad"]).clip(lower=1)
-    df["Max"] = df["Min"] + df["OptimaleBestelgrootte"]
+    df["Max"] = np.where(
+    df["EOQ_KleinerDanBestelgroote"],
+    df["Min"],
+    df["Min"] + df["OptimaleBestelgrootte"]
+)
 
-    df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2
+    df["GemiddeldeVoorraadNieuw"] = np.where(
+    df["EOQ_KleinerDanBestelgroote"],
+    (df["Min"] + df["Min"] + df["OptimaleBestelgrootte"]) / 2,
+    (df["Min"] + df["Max"]) / 2
+)
     df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2
     df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
     df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
