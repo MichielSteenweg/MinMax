@@ -70,27 +70,18 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 def genereer_excel(df):
     output = BytesIO()
     df_export = df.copy()
-    if "EOQ_KleinerDanBestelgroote" in df_export.columns:
-        df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
-
     decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
-    for col in df_export.columns:
-        if col in ["Min", "Max"]:
-            df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
-        elif col in df.columns[:14]:
-            continue
-        else:
-            df_export[col] = df_export[col].round(2)
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        # Excelbestand inclusief alle kolommen (voor conditional formatting)
         df_export.to_excel(writer, index=False, sheet_name="Sheet1")
         workbook = writer.book
         worksheet = writer.sheets["Sheet1"]
 
         red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
 
-        eoql_col_letter = chr(65 + df.columns.get_loc("EOQ"))
-        flag_col_letter = chr(65 + df.columns.get_loc("EOQ_KleinerDanBestelgroote"))
+        eoql_col_letter = chr(65 + df_export.columns.get_loc("EOQ"))
+        flag_col_letter = chr(65 + df_export.columns.get_loc("EOQ_KleinerDanBestelgroote"))
         aantal_rijen = len(df_export)
 
         for row in range(2, aantal_rijen + 2):
@@ -99,6 +90,9 @@ def genereer_excel(df):
                 "criteria": f"=${flag_col_letter}{row}=TRUE",
                 "format": red_fill
             })
+
+    # Na schrijven -> kolom verwijderen uit zichtbare export
+    df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
 
     output.seek(0)
     return output
