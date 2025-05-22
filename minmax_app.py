@@ -71,9 +71,15 @@ def genereer_excel(df):
     output = BytesIO()
     df_export = df.copy()
     decimal_minmax = ((df_export["MinHuidig"] % 1 != 0) | (df_export["MaxHuidig"] % 1 != 0))
+    for col in df_export.columns:
+        if col in ["Min", "Max"]:
+            df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
+        elif col in df.columns[:14]:
+            continue
+        else:
+            df_export[col] = df_export[col].round(2)
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Excelbestand inclusief alle kolommen (voor conditional formatting)
         df_export.to_excel(writer, index=False, sheet_name="Sheet1")
         workbook = writer.book
         worksheet = writer.sheets["Sheet1"]
@@ -90,9 +96,6 @@ def genereer_excel(df):
                 "criteria": f"=${flag_col_letter}{row}=TRUE",
                 "format": red_fill
             })
-
-    # Na schrijven -> kolom verwijderen uit zichtbare export
-    df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
 
     output.seek(0)
     return output
