@@ -103,10 +103,7 @@ def genereer_excel(df):
                 "format": red_fill
             })
 
-    # Nieuwe export zonder de kolom
-    df_export = df_export_conditional.drop(columns=["EOQ_KleinerDanBestelgroote"]).copy()
-
-    for col in df_export.columns:
+     for col in df_export.columns:
         if col in ["Min", "Max"]:
             df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
         elif col in df.columns[:14]:
