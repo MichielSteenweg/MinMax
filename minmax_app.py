@@ -4,13 +4,19 @@ from io import BytesIO
 import numpy as np
 
 # Werkdagen
+
 def werkdagen_tussen(dagen):
     return round((dagen / 7) * 5)
 
 def bereken_trendfactor(df):
     maandelijks_6m = df["Verkoop6M"] / 6
+    maandelijks_12m = df["Verkoop12M"] / 12
     maandelijks_24m = df["Verkoop24M"] / 24
-    trendfactor = (maandelijks_6m / maandelijks_24m.replace(0, 0.01)).clip(lower=0.8, upper=1.2)
+
+    # Gemiddelde van 6M en 12M
+    gemiddeld_kort = (maandelijks_6m + maandelijks_12m) / 2
+
+    trendfactor = (gemiddeld_kort / maandelijks_24m.replace(0, 0.01)).clip(lower=0.8, upper=1.2)
     return trendfactor
 
 def bereken_dagverkoop(df):
@@ -89,6 +95,7 @@ def genereer_excel(df):
                 "format": red_fill
             })
 
+    # Nieuwe export zonder de kolom
     df_export = df_export_conditional.drop(columns=["EOQ_KleinerDanBestelgroote"]).copy()
 
     for col in df_export.columns:
@@ -106,7 +113,6 @@ def genereer_excel(df):
     output.seek(0)
     return output
 
-# Streamlit UI
 st.title("Min/Max + EOQ met trend en ABC-servicegraad")
 
 bestelkosten = 0.5
@@ -130,11 +136,9 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         st.write("Voorbeeld van ingelezen data:", df.head())
 
-        verplichte_kolommen = {
-            "Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
-            "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
-            "MinHuidig", "MaxHuidig", "ABC"
-        }
+        verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
+                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
+                               "MinHuidig", "MaxHuidig", "ABC"}
         if verplichte_kolommen.issubset(df.columns):
             resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
             totaal_verschil = resultaat_df["VerschilVoorraadWaarde"].sum()
