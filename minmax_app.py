@@ -90,6 +90,13 @@ def genereer_excel(df):
         workbook = writer.book
         worksheet = writer.sheets["Sheet1"]
 
+        # Verberg de vlagkolom EOQ_KleinerDanBestelgroote
+        try:
+            flag_col_idx = df_export_conditional.columns.get_loc("EOQ_KleinerDanBestelgroote")
+            worksheet.set_column(flag_col_idx, flag_col_idx, None, None, {"hidden": True})
+        except:
+            pass
+
         red_fill = workbook.add_format({"bg_color": "#FFC7CE", "font_color": "#9C0006"})
 
         eoql_col_letter = chr(65 + df_export_conditional.columns.get_loc("EOQ"))
@@ -103,7 +110,10 @@ def genereer_excel(df):
                 "format": red_fill
             })
 
-     for col in df_export.columns:
+    # Nieuwe export zonder de kolom
+    df_export = df_export_conditional.drop(columns=["EOQ_KleinerDanBestelgroote"]).copy()
+
+    for col in df_export.columns:
         if col in ["Min", "Max"]:
             df_export[col] = np.where(decimal_minmax, df_export[col].round(2), df_export[col].round(0))
         elif col in df.columns[:14]:
