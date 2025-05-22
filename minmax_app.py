@@ -22,7 +22,7 @@ def bereken_dagverkoop(df):
 
 def bereken_optimale_bestelgrootte(df, bestelkosten, voorraadkosten_p_jaar):
     df["Jaarverbruik"] = df["Dagverkoop"] * 261
-    df["EOQ"] = np.sqrt((2 * df["Jaarverbruik"] * bestelkosten) / (voorraadkosten_p_jaar * df["Kostprijs"]))
+    df["EOQ"] = np.sqrt((2 * df["Jaarverbruik"] * bestelkosten) / (voorraadkosten_p_jaar * df["KostprijsPerStuk"]))
     df["OptimaleBestelgrootte"] = (df["EOQ"] / df["Bestelgroote"]).round(0) * df["Bestelgroote"]
     return df
 
@@ -40,6 +40,7 @@ def get_z_value_from_abc(abc):
     return service, z
 
 def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
+    df["KostprijsPerStuk"] = df["Kostprijs"] / df["Per"].replace(0, np.nan)
     df["Dagverkoop"] = bereken_dagverkoop(df)
     df["Trendfactor"] = bereken_trendfactor(df)
     df["DagverkoopTrend"] = df["Dagverkoop"] * df["Trendfactor"]
@@ -61,9 +62,9 @@ def bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar):
 
     df["GemiddeldeVoorraadNieuw"] = (df["Min"] + df["Max"]) / 2
     df["GemiddeldeVoorraadHuidig"] = (df["MinHuidig"] + df["MaxHuidig"]) / 2
-    df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["Kostprijs"] * (voorraadkosten_p_jaar / 12)
-    df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["Kostprijs"] * (voorraadkosten_p_jaar / 12)
-    df["VerschilVoorraadWaarde"] = (df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]) * df["Kostprijs"]
+    df["VoorraadkostenNieuw"] = df["GemiddeldeVoorraadNieuw"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
+    df["VoorraadkostenHuidig"] = df["GemiddeldeVoorraadHuidig"] * df["KostprijsPerStuk"] * (voorraadkosten_p_jaar / 12)
+    df["VerschilVoorraadWaarde"] = (df["GemiddeldeVoorraadNieuw"] - df["GemiddeldeVoorraadHuidig"]) * df["KostprijsPerStuk"]
 
     return df
 
@@ -107,7 +108,7 @@ if uploaded_file:
         st.write("Voorbeeld van ingelezen data:", df.head())
 
         verplichte_kolommen = {"Verkoop1M", "Verkoop2M", "Verkoop6M", "Verkoop12M", "Verkoop24M",
-                               "LevertijdWD", "Cyclus", "Kostprijs", "Bestelgroote", "Artikelnummer",
+                               "LevertijdWD", "Cyclus", "Kostprijs", "Per", "Bestelgroote", "Artikelnummer",
                                "MinHuidig", "MaxHuidig", "ABC"}
         if verplichte_kolommen.issubset(df.columns):
             resultaat_df = bereken_min_max(df, bestelkosten, voorraadkosten_p_jaar)
