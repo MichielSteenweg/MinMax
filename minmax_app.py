@@ -96,8 +96,6 @@ def genereer_excel(df):
                 "criteria": f"=${flag_col_letter}{row}=TRUE",
                 "format": red_fill
             })
-
-     df_export.drop(columns=["EOQ_KleinerDanBestelgroote"], inplace=True)
     
     output.seek(0)
     return output
