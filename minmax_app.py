@@ -19,8 +19,6 @@ def bereken_minmax(row):
     trend = 1.0
     if row['#12mnd'] > 0:
         trend = max(trend, (row['#6mnd'] * 2) / row['#12mnd'])
-    if row['#24mnd'] > 0:
-        trend = max(trend, (row['#6mnd'] * 4) / row['#24mnd'])
 
     abc = str(row['ABC']).strip().upper()
     serviceniveau = servicegraden.get(abc, 0.95)
