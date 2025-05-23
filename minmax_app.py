@@ -37,14 +37,13 @@ def bereken_minmax(row):
     max_nieuw = min_nieuw + verwacht_gebruik
 
     best_eenheid = row['Best.Eenh.'] if row['Best.Eenh.'] > 0 else 1
-    min_afgerond = int(np.ceil(min_nieuw / best_eenheid) * best_eenheid)
     max_afgerond = int(np.ceil(max_nieuw / best_eenheid) * best_eenheid)
 
     return pd.Series({
         'Dagverkoop': dagverkoop,
         'Trend': trend,
         'Serviceniveau': serviceniveau,
-        'Min_Nieuw': min_afgerond,
+        'Min_Nieuw': round(min_nieuw, 2),
         'Max_Nieuw': max_afgerond
     })
 
