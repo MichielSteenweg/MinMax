@@ -26,11 +26,12 @@ def bereken_minmax(row):
     serviceniveau = servicegraden.get(abc, 0.95)
 
     levertijd = row['Levert.'] if row['Levert.'] > 0 else 5
-    veiligheidsvoorraad = serviceniveau * dagverkoop * np.sqrt(levertijd)
-
     cycle_waarde = row['Cyclus']
     cycle_dagen = cycle_waarde * 5 if cycle_waarde > 0 else 5
-    verwacht_gebruik = dagverkoop * cycle_dagen * trend
+    totale_horizon = levertijd + cycle_dagen
+
+    verwacht_gebruik = dagverkoop * totale_horizon * trend
+    veiligheidsvoorraad = serviceniveau * dagverkoop * np.sqrt(totale_horizon)
 
     min_nieuw = veiligheidsvoorraad + verwacht_gebruik
     max_nieuw = min_nieuw + verwacht_gebruik
