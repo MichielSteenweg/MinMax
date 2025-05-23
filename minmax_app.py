@@ -35,7 +35,7 @@ def bereken_minmax(row):
     min_nieuw = veiligheidsvoorraad + verwacht_gebruik
     max_nieuw = min_nieuw + verwacht_gebruik
 
-    best_eenheid = row['Best.Eeh.'] if row['Best.Eeh.'] > 0 else 1
+    best_eenheid = row['Best.Eenh.'] if row['Best.Eenh.'] > 0 else 1
     min_afgerond = int(np.ceil(min_nieuw / best_eenheid) * best_eenheid)
     max_afgerond = int(np.ceil(max_nieuw / best_eenheid) * best_eenheid)
 
