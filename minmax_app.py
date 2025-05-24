@@ -13,6 +13,9 @@ def bereken_minmax(row):
         'G': 0.95  # fallback
     }
 
+    orderkosten = 0.50
+    voorraadkosten_pct = 0.12  # per jaar (1% per maand)
+
     werkdagen_per_maand = 21.75
     dagverkoop = row['#6mnd'] / (6 * werkdagen_per_maand) if row['#6mnd'] > 0 else 0
 
@@ -34,6 +37,11 @@ def bereken_minmax(row):
     min_nieuw = veiligheidsvoorraad + verwacht_gebruik
     max_nieuw = min_nieuw + verwacht_gebruik
 
+    kostprijs = row['Kostprijs'] / row['Per'] if row['Per'] > 0 else 0
+    jaarverbruik = row['#6mnd'] * 2
+
+    q_optimaal = np.sqrt((2 * orderkosten * jaarverbruik) / (voorraadkosten_pct * kostprijs)) if kostprijs > 0 else 0
+
     best_eenheid = row['Best.Eenh.'] if row['Best.Eenh.'] > 0 else 1
     min_afgerond = int(np.ceil(min_nieuw))
     max_afgerond = int(np.ceil(max_nieuw / best_eenheid) * best_eenheid)
@@ -43,7 +51,8 @@ def bereken_minmax(row):
         'Trend': trend,
         'Serviceniveau': serviceniveau,
         'Min_Nieuw': min_afgerond,
-        'Max_Nieuw': max_afgerond
+        'Max_Nieuw': max_afgerond,
+        'Q_optimaal': round(q_optimaal, 2)
     })
 
 st.title("Min-Max Berekening op Basis van Verkoopdata")
