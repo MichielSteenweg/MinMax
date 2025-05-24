@@ -42,16 +42,14 @@ def bereken_minmax(row):
 
     q_optimaal = np.sqrt((2 * orderkosten * jaarverbruik) / (voorraadkosten_pct * kostprijs)) if kostprijs > 0 else 0
 
-    best_eenheid = row['Best.Eenh.'] if row['Best.Eenh.'] > 0 else 1
     min_afgerond = int(np.ceil(min_nieuw))
-    max_afgerond = int(np.ceil(max_nieuw / best_eenheid) * best_eenheid)
 
     return pd.Series({
         'Dagverkoop': dagverkoop,
         'Trend': trend,
         'Serviceniveau': serviceniveau,
         'Min_Nieuw': min_afgerond,
-        'Max_Nieuw': max_afgerond,
+        'Max_Nieuw': round(max_nieuw, 2),
         'Q_optimaal': round(q_optimaal, 2)
     })
 
